@@ -88,8 +88,9 @@ natural_ie <- medoutcon(
 )
 
 # TE-TE^R
-natural_de$theta + natural_ie$theta - ria_de$theta - ria_ie$theta  # point estimate
-stats::var(natural_de$eif + natural_ie$eif - ria_de$eif - ria_ie$eif)/length(A)   # se
+point <- natural_de$theta + natural_ie$theta - ria_de$theta - ria_ie$theta  # point estimate
+point
+se <- stats::var(natural_de$eif + natural_ie$eif - ria_de$eif - ria_ie$eif)/length(A)   # se
 (1-stats::pnorm(abs(point/se)))*2   # p value
 point - stats::qnorm(1-0.05/2)*se   # lower CI
 point + stats::qnorm(1-0.05/2)*se   # upper CI
