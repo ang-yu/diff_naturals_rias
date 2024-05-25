@@ -32,6 +32,8 @@ Z <- ifelse(Z < 0.5, 0, 1)
 # The Z variable in the dataset is a pseudo continuous variable, so we binarize it to its original scale
 A <- as.numeric(A)-1
 
+set.seed(1)
+
 # Random Forests nuisance function learners
 rf_lrnr <- Lrnr_ranger$new(num.trees = 200)  # Random Forests 
 
