@@ -11,9 +11,8 @@ sim <- function(b) {
   L_0 <- L_epsilon
   L_1 <- 1 + L_epsilon
   
-  M_epsilon <- rnorm(100000, 0, 1)
-  M_0 <- logit(L_0 + M_epsilon)
-  M_1 <- logit(1 + L_1 + b*L_1 + M_epsilon)
+  M_0 <- logit(L_0)
+  M_1 <- logit(1 + L_1 + b*L_1)
   G_0 <- sample(M_0, 100000, replace = FALSE)
   G_1 <- sample(M_1, 100000, replace = FALSE)
   
