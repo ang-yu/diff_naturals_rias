@@ -37,17 +37,15 @@ sim <- function(b) {
 parameter_seq <- seq(-3, 0, 0.01)
 results <- as.data.frame( t(sapply(parameter_seq, sim)) )
 results$p <- parameter_seq
-colnames(results)[1:4] <- c("NIE", "NIER", "NDE", "NDER")
+colnames(results)[1:4] <- c("NIE", "NIE^R", "NDE", "NDE^R")
 
 figure_ie <- ggplot(data = results, aes(x = p)) +
   geom_line(aes(y = NIE, colour = "NIE", linetype = "NIE")) +  
-  geom_line(aes(y = NIER, colour = "NIER", linetype = "NIER")) +  
-  labs(title = "Plot of y = NIE and y = NIER", 
-       x = "X axis", y = "Y axis") +
-  scale_colour_manual(values = c("NIE" = "blue", "NIER" = "red"),
-                      name = "Estimands", labels = c("NIE", "NIER")) +
-  scale_linetype_manual(values = c("NIE" = "solid", "NIER" = "dashed"),
-                        name = "Estimands", labels = c("NIE", "NIER")) +
+  geom_line(aes(y = NIER, colour = "NIE^R", linetype = "NIE^R")) +  
+  scale_colour_manual(values = c("NIE" = "blue", "NIE^R" = "red"),
+                      name = "Estimands", labels = c("NIE", "NIE^R")) +
+  scale_linetype_manual(values = c("NIE" = "solid", "NIE^R" = "dashed"),
+                        name = "Estimands", labels = c("NIE", "NIE^R")) +
   theme_minimal() +
   geom_ribbon(data=results[which(results$NIE < 0 & results$NIER > 0),], aes(ymin=pmin(NIE, NIER), ymax=pmax(NIE, NIER)), fill = "gray", alpha = 1) +
   labs(title = NULL, x = "b value", y = NULL) +
@@ -56,17 +54,18 @@ figure_ie <- ggplot(data = results, aes(x = p)) +
 
 figure_de <- ggplot(data = results, aes(x = p)) +
   geom_line(aes(y = NDE, colour = "NDE", linetype = "NDE")) +  
-  geom_line(aes(y = NDER, colour = "NDER", linetype = "NDER")) +  
-  labs(title = "Plot of y = NDE and y = NDER", 
-       x = "X axis", y = "Y axis") +
-  scale_colour_manual(values = c("NDE" = "blue", "NDER" = "red"),
-                      name = "Estimands", labels = c("NDE", "NDER")) +
-  scale_linetype_manual(values = c("NDE" = "solid", "NDER" = "dashed"),
-                        name = "Estimands", labels = c("NDE", "NDER")) +
+  geom_line(aes(y = NDER, colour = "NDE^R", linetype = "NDE^R")) +  
+  scale_colour_manual(values = c("NDE" = "blue", "NDE^R" = "red"),
+                      name = "Estimands", labels = c("NDE", "NDE^R")) +
+  scale_linetype_manual(values = c("NDE" = "solid", "NDE^R" = "dashed"),
+                        name = "Estimands", labels = c("NDE", "NDE^R")) +
   theme_minimal() +
   labs(title = NULL, x = "b value", y = NULL) +
   theme(plot.background = element_rect(fill = "white", colour = "white")) 
 
-ggarrange(figure_ie, figure_de,
+plot <- ggarrange(figure_ie, figure_de,
           labels = c("(a)", "(b)"),
           ncol = 2, nrow = 1)
+
+ggsave(paste("/Users/Ang/Desktop/Research/Cross-world_estimands/sim_figure",".jpg", sep=""), plot, width=9, height=3.5)
+
