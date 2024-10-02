@@ -1,7 +1,6 @@
 library(foreign)
 library(sl3)
 library(ranger)
-library(earth)
 #remotes::install_github('ang-yu/ria_test')
 #remotes::install_github('mlr-org/mlr3extralearners@*release')
 library(crumble)
