@@ -1,7 +1,11 @@
-
 library(foreign)
-library(medoutcon)
 library(sl3)
+library(ranger)
+library(earth)
+#remotes::install_github('ang-yu/ria_test')
+#remotes::install_github('mlr-org/mlr3extralearners@*release')
+library(crumble)
+library(mlr3extralearners)
 
 data <- read.dta("/Users/Ang/Desktop/Research/Cross-world_estimands/ICPSR_34563/DS0001/34563-0001-Zipped_package/mto_sci_puf_pseudo_20130206.dta")
 
@@ -22,86 +26,21 @@ alldat <- data[data$ra_site!=1, c(Wnames,Aname, Zname, Mnames, Yname) ]
 sum(is.na(alldat))
 alldat <- alldat[complete.cases(alldat), ]
 
-W <- alldat[, Wnames]
-M <- alldat[, Mnames]
-A <- alldat[, Aname]
-Z <- alldat[, Zname]
-Y <- alldat[, Yname]
-
-Z <- ifelse(Z < 0.5, 0, 1)    
-# The Z variable in the dataset is a pseudo continuous variable, so we binarize it to its original scale
-A <- as.numeric(A)-1
-
 set.seed(1)
 
-# Random Forests nuisance function learners
-rf_lrnr <- Lrnr_ranger$new(num.trees = 200)  # Random Forests 
-
-# NDE^R
-ria_de <- medoutcon(
-  W = W, A = A, Z = Z, M = M, Y = Y,
-  g_learners = rf_lrnr,
-  h_learners = rf_lrnr,
-  b_learners = rf_lrnr,
-  q_learners = rf_lrnr,
-  r_learners = rf_lrnr,
-  effect = "direct",
-  estimator = "onestep",
-  estimator_args = list(cv_folds = 2)
+test <- crumble(
+  data = alldat,
+  trt = Aname, 
+  outcome = Yname,
+  covar = Wnames,
+  mediators = Mnames,
+  moc = Zname,
+  d0 = \(data, trt) factor(rep(levels(alldat[,Aname])[1], nrow(data)), levels = levels(alldat[,Aname])), 
+  d1 = \(data, trt) factor(rep(levels(alldat[,Aname])[2], nrow(data)), levels = levels(alldat[,Aname])), 
+  effect = "Te",
+  learners = c("mean", "glm", "ranger"), 
+  nn_module = sequential_module(),
+  control = crumble_control(crossfit_folds = 2L, mlr3superlearner_folds = 5L, zprime_folds = 5L, epochs = 10L)
 )
 
-# NIE^R
-ria_ie <- medoutcon(
-  W = W, A = A, Z = Z, M = M, Y = Y,
-  g_learners = rf_lrnr,
-  h_learners = rf_lrnr,
-  b_learners = rf_lrnr,
-  q_learners = rf_lrnr,
-  r_learners = rf_lrnr,
-  effect = "direct",
-  estimator = "onestep",
-  estimator_args = list(cv_folds = 2)
-)
-
-# NDE
-natural_de <- medoutcon(
-  W = W, A = A, Z = NULL, M = M, Y = Y,
-  g_learners = rf_lrnr,
-  h_learners = rf_lrnr,
-  b_learners = rf_lrnr,
-  q_learners = rf_lrnr,
-  r_learners = rf_lrnr,
-  effect = "direct",
-  estimator = "onestep",
-  estimator_args = list(cv_folds = 2)
-)
-
-# NIE
-natural_ie <- medoutcon(
-  W = W, A = A, Z = NULL, M = M, Y = Y,
-  g_learners = rf_lrnr,
-  h_learners = rf_lrnr,
-  b_learners = rf_lrnr,
-  q_learners = rf_lrnr,
-  r_learners = rf_lrnr,
-  effect = "direct",
-  estimator = "onestep",
-  estimator_args = list(cv_folds = 2)
-)
-
-# TE-TE^R
-point <- natural_de$theta + natural_ie$theta - ria_de$theta - ria_ie$theta  # point estimate
-point
-se <- stats::var(natural_de$eif + natural_ie$eif - ria_de$eif - ria_ie$eif)/length(A)   # se
-(1-stats::pnorm(abs(point/se)))*2   # p value
-point - stats::qnorm(1-0.05/2)*se   # lower CI
-point + stats::qnorm(1-0.05/2)*se   # upper CI
-
-# TE
-natural_de$theta + natural_ie$theta  - stats::qnorm(1-0.05/2)*stats::var(natural_de$eif + natural_ie$eif )/length(A)
-natural_de$theta + natural_ie$theta  + stats::qnorm(1-0.05/2)*stats::var(natural_de$eif + natural_ie$eif )/length(A)
-
-# TE^R
-ria_de$theta + ria_ie$theta  - stats::qnorm(1-0.05/2)*stats::var(ria_de$eif + ria_ie$eif )/length(A)
-ria_de$theta + ria_ie$theta  + stats::qnorm(1-0.05/2)*stats::var(ria_de$eif + ria_ie$eif )/length(A)
-
+test
