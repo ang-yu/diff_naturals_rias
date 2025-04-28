@@ -1,8 +1,8 @@
+
 library(foreign)
 library(sl3)
 library(ranger)
-#remotes::install_github('ang-yu/ria_test')
-#remotes::install_github('mlr-org/mlr3extralearners@*release')
+remotes::install_github('ang-yu/ria_test')
 library(crumble)
 library(mlr3extralearners)
 
@@ -19,7 +19,9 @@ Aname <- "ra_poolgrp_exps8"
 Zname <- "ps_f_svy_cmove"
 Yname <- "ps_f_mh_idx_z_ad"
 
-alldat <- data[data$ra_site!=1, c(Wnames,Aname, Zname, Mnames, Yname) ]
+alldat <- data[data$ra_site!=1, c(Wnames,Aname, Zname, Mnames, Yname)]
+
+sd(alldat[,Yname]) # the outcome is standardized already
 
 # drop 3 rows with missing values
 sum(is.na(alldat))
