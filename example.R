@@ -1,9 +1,8 @@
-
 library(foreign)
-library(sl3)
-library(ranger)
-remotes::install_github('ang-yu/ria_test')
-library(crumble)
+if (!requireNamespace("ria.test", quietly = TRUE)) {
+  remotes::install_github("ang-yu/ria.test")
+}
+library(ria.test)
 library(mlr3extralearners)
 
 data <- read.dta("/Users/Ang/Desktop/Research/Cross-world_estimands/ICPSR_34563/DS0001/34563-0001-Zipped_package/mto_sci_puf_pseudo_20130206.dta")
@@ -29,19 +28,30 @@ alldat <- alldat[complete.cases(alldat), ]
 
 set.seed(1)
 
-test <- crumble(
+test <- ria.test(
   data = alldat,
   trt = Aname, 
   outcome = Yname,
-  covar = Wnames,
+  pre = Wnames,
   mediators = Mnames,
-  moc = Zname,
-  d0 = \(data, trt) factor(rep(levels(alldat[,Aname])[1], nrow(data)), levels = levels(alldat[,Aname])), 
-  d1 = \(data, trt) factor(rep(levels(alldat[,Aname])[2], nrow(data)), levels = levels(alldat[,Aname])), 
-  effect = "Te",
+  post = Zname,
+  d0 = \(data, trt) factor(
+    rep(levels(data[[trt]])[1], nrow(data)),
+    levels = levels(data[[trt]])
+  ),
+  d1 = \(data, trt) factor(
+    rep(levels(data[[trt]])[2], nrow(data)),
+    levels = levels(data[[trt]])
+  ),
   learners = c("mean", "glm", "ranger"), 
   nn_module = sequential_module(),
-  control = crumble_control(crossfit_folds = 2L, mlr3superlearner_folds = 5L, zprime_folds = 5L, epochs = 10L)
+  control = ria.test.control(
+    crossfit_folds = 2L,
+    mlr3superlearner_folds = 5L,
+    zprime_folds = 5L,
+    epochs = 10L,
+    torch_seed = 1L
+  )
 )
 
-test
+tidy(test)
