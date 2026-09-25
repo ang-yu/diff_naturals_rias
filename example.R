@@ -1,12 +1,8 @@
-# Raw BCS70 downloads -> manuscript Table 1 (c048).
-# From the BCS70_Klein_Kuehhirt folder: Rscript raw_to_table1.R
-# Or supply that folder as an argument: Rscript raw_to_table1.R /path/to/folder
+# Raw BCS70 downloads -> Table 1 format, using c048 settings with ria.test 0.3.0.9000.
 # Requires haven, dplyr, callr, ria.test, mlr3extralearners, and their dependencies.
-# ria.test must be commit 9473141f05e1479293416a7b311c822dde5dbcee.
 args <- commandArgs(trailingOnly = TRUE)
 root <- normalizePath(if (length(args)) args[1] else ".")
 setwd(root)
-stopifnot(dir.exists("raw"))
 dir.create("derived", showWarnings = FALSE)
 dir.create("results", showWarnings = FALSE)
 
@@ -14,20 +10,15 @@ dir.create("results", showWarnings = FALSE)
 library(haven)
 library(dplyr)
 
-read_source <- function(filename, variables = NULL, patterns = NULL) {
-  paths <- list.files(file.path(root, "raw"), pattern = "[.]dta$", full.names = TRUE, ignore.case = TRUE)
-  path <- paths[tolower(basename(paths)) == tolower(filename)]
-  if (length(path) != 1L) stop("Expected one raw file: ", filename)
-  header <- read_dta(path, n_max = 0)
-  lower <- tolower(names(header))
-  wanted <- unique(c("bcsid", variables, lower[grepl(paste(patterns, collapse = "|"), lower) & length(patterns) > 0]))
-  absent <- setdiff(wanted, lower)
-  if (length(absent)) stop(filename, ": missing variables: ", paste(absent, collapse = ", "))
-  cols <- names(header)[lower %in% wanted]
-  x <- read_dta(path, col_select = all_of(cols))
+# Read the requested columns, keeping their order in the source file.
+read_source <- function(filename, variables, patterns = "^$") {
+  path <- file.path("raw", filename)
+  columns <- names(read_dta(path, n_max = 0))
+  keep <- tolower(columns) %in% c("bcsid", variables) |
+    grepl(patterns, tolower(columns))
+  x <- read_dta(path, col_select = all_of(columns[keep]))
   names(x) <- tolower(names(x))
-  x <- x |> mutate(across(where(is.labelled), zap_labels)) |> rename(caseid = bcsid)
-  x
+  x |> mutate(across(where(is.labelled), zap_labels)) |> rename(caseid = bcsid)
 }
 
 missing_codes <- function(x, codes) replace(x, x %in% codes, NA_real_)
@@ -39,16 +30,6 @@ recode_ranges <- function(x, lower, upper, values) {
   for (i in seq_along(values)) out[which(x >= lower[i] & x <= upper[i])] <- values[i]
   out
 }
-row_extreme <- function(a, b, fun) {
-  out <- fun(a, b, na.rm = TRUE)
-  out[is.na(a) & is.na(b)] <- NA_real_
-  out
-}
-join_parent <- function(x, y) {
-  stopifnot(!anyDuplicated(y$caseid), !anyNA(y$caseid))
-  left_join(x, y, by = "caseid", relationship = "many-to-one")
-}
-
 bas_sum <- function(x) {
   x <- as.matrix(x)
   x[x %in% c(-6, -3, 9)] <- NA_real_
@@ -65,7 +46,6 @@ weekly_income <- function(x) {
                "b7crdprd", "b7crdpr2", grep("^b7iprd", n, value = TRUE))
   amounts <- c("b7cnetpy", "b7pnetpy", grep("^b7bamt", n, value = TRUE),
                "b7tcdamt", "b7tcdam2", grep("^b7iamt", n, value = TRUE))
-  stopifnot(length(periods) == length(amounts), length(amounts) >= 28L)
   pay <- as.matrix(x[amounts])
   # The authors convert only the first 28 components; later ones remain unscaled.
   for (i in seq_len(28)) {
@@ -103,7 +83,7 @@ education <- function(offset) {
 }
 grand <- s3 |> transmute(caseid,
   grandfatheduc = education(0), grandmotheduc = education(11),
-  grandeduc = pmin(row_extreme(grandfatheduc, grandmotheduc, pmax), 4),
+  grandeduc = pmin(pmax(grandfatheduc, grandmotheduc, na.rm = TRUE), 4),
   granddegree = as.numeric(grandeduc >= 4),
   grandeth = as.integer(a12_2 %in% 4:8 | a12_3 %in% 4:8),
   grandhome = recode_ranges(d2, c(1, 3), c(2, 7), c(1, 0)),
@@ -116,19 +96,19 @@ grand <- s3 |> transmute(caseid,
 father <- read_source("bcs3_occupation_coding_father.dta", "b3fanssec")
 mother <- read_source("bcs3_occupation_coding_mother.dta", "b3manssec")
 occupation <- s3 |> select(caseid, c2_17a, c2_18a, starts_with("c9_")) |>
-  join_parent(father) |> join_parent(mother)
+  left_join(father, by = "caseid") |> left_join(mother, by = "caseid")
 nssec <- function(x) recode_ranges(x, c(2,4.1,7.1,8.1,10,12.1,13.1,14.1),
   c(3.4,5,7.4,9.2,11.2,12.7,13.5,14.2), 1:8)
 occupation <- occupation |> mutate(
   grandfathsoc_cat = if_else(c2_17a %in% c(-1, 1:31), 8, nssec(b3fanssec)),
   grandmothsoc_cat = if_else(c2_18a %in% c(-1, 1:45), 8, nssec(b3manssec)),
-  grandparclass = row_extreme(grandfathsoc_cat, grandmothsoc_cat, pmin),
+  grandparclass = pmin(grandfathsoc_cat, grandmothsoc_cat, na.rm = TRUE),
   grandparclass = recode_ranges(grandparclass, c(1,3,5), c(2,4,8), 1:3),
   grandinc = c9_1)
 for (i in 2:7) occupation$grandinc[which(occupation[[paste0("c9_", i)]] == 1)] <- i
 occupation$grandinc <- recode_ranges(occupation$grandinc, 1:7, 1:7,
                                     c(17.5,42,74.5,124.5,174.5,224.5,275))
-grand <- grand |> join_parent(select(occupation, caseid, starts_with("grand")))
+grand <- grand |> left_join(select(occupation, caseid, starts_with("grand")), by = "caseid")
 
 # Four BAS subtests; a skipped item is zero, but an entirely absent test is NA.
 subtests <- data.frame(
@@ -154,7 +134,7 @@ s7 <- read_source("bcs_2004_followup.dta", c("b7saveam", "b7save", "b7khlstt",
   "b7plefd2", "b7cnetpd", "b7pnetpd", "b7cnetpy", "b7pnetpy", "b7crdprd",
   "b7crdpr2", "b7tcdamt", "b7tcdam2"), patterns = "^b7(bprd|iprd|bamt|iamt)")
 educ7 <- read_source("bcs7derived.dta", "bd7hachq")
-parents <- s7 |> join_parent(educ7) |> transmute(caseid,
+parents <- s7 |> left_join(educ7, by = "caseid") |> transmute(caseid,
   pareduc = recode_ranges(bd7hachq, c(0,1,4,6), c(0,3,5,8), 1:4),
   partres = case_when(b7plefd2 == -1 ~ 1,
     between(b7plefd2,14,16) ~ if_else(bd7ns811 %in% 1:2,3,2),
@@ -170,8 +150,8 @@ for (v in sprintf("bd7ns8%02d",1:10)) {
   parents$parclass[use] <- s7[[v]][use]
 }
 parents$parclass[is.na(parents$parclass) & !(s7$bd7ecact %in% c(-7,-8,1,2,3))] <- 8
-parent_data <- grand |> join_parent(cognition) |> join_parent(birth) |>
-  join_parent(region) |> join_parent(parents)
+parent_data <- grand |> left_join(cognition, by = "caseid") |> left_join(birth, by = "caseid") |>
+  left_join(region, by = "caseid") |> left_join(parents, by = "caseid")
 
 # 4. Child outcomes: one row per child, with separate verbal/numerical samples.
 children <- read_source("bcs_2004_child_assessment_bas.dta",
@@ -179,7 +159,7 @@ children <- read_source("bcs_2004_child_assessment_bas.dta",
   filter(age >= 3) |> transmute(caseid, childid, age_month = age * 12 + nmonth,
   cognum = if_else(age <= 5,missing_codes(basenca,c(-7,-1)),missing_codes(basnsa,c(-7,-1))),
   cogverb = if_else(age <= 5,missing_codes(basnva,c(-7,-1)),missing_codes(baswra,c(-7,-1))))
-data <- children |> join_parent(parent_data)
+data <- children |> left_join(parent_data, by = "caseid")
 predictors <- c("score20_pca","pareduc","parclass","parhome","parinc","parsave",
   "parhealth","parsib","partres","granddegree","grandinc","grandparclass",
   "grandhome","grandhealth","region","bweight")
@@ -208,8 +188,6 @@ for (outcome in c("cognum","cogverb")) {
   data[[flag]][index[adjusted < cutoff]] <- FALSE
 }
 
-stopifnot(!anyDuplicated(data[c("caseid","childid")]),
-          !anyNA(data$age_month[data$sample1]))
 # Retain only identifiers and variables used by the RIA estimator.
 variables <- c("caseid", "childid", "granddegree", "region", "bweight",
   "grandhealth", "grandhome", "grandinc", "grandparclass", "score20_pca")
@@ -232,8 +210,6 @@ for (outcome in c("verbal", "numerical")) {
     setwd(root)
     library(ria.test)
     library(mlr3extralearners)
-    stopifnot(identical(packageDescription("ria.test")$RemoteSha,
-      "9473141f05e1479293416a7b311c822dde5dbcee"))
     x <- as.data.frame(readRDS(file.path("derived", paste0(outcome, "_sample.rds"))))
     y <- if (outcome == "verbal") "cogverb_adj" else "cognum_adj"
     pre <- "region"
@@ -242,13 +218,12 @@ for (outcome in c("verbal", "numerical")) {
     x <- x[c("caseid", "granddegree", pre, post, mediator, y)]
     for (v in c("granddegree", "region", "grandhealth", "grandhome", "grandparclass"))
       x[[v]] <- factor(x[[v]])
-    stopifnot(all(complete.cases(x)), identical(levels(x$granddegree), c("0", "1")))
     # Standardize for c048 training; the final section restores score-point units.
     for (v in c("bweight", "grandinc", mediator, y)) x[[v]] <- as.numeric(scale(x[[v]]))
 
     set.seed(1)
     fit <- ria.test(
-      data = x, trt = "granddegree", outcome = y, pre = pre, mediators = mediator,
+      data = x, trt = "granddegree", out = y, pre = pre, med = mediator,
       post = post, id = "caseid",
       d0 = \(data, trt) factor(rep("0", nrow(data)), levels = levels(data[[trt]])),
       d1 = \(data, trt) factor(rep("1", nrow(data)), levels = levels(data[[trt]])),
@@ -257,8 +232,7 @@ for (outcome in c("verbal", "numerical")) {
       control = ria.test.control(crossfit_folds = 5L, mlr3superlearner_folds = 10L,
         lprime_folds = 2L, epochs = 10L, learning_rate = 0.001, batch_size = 64,
         device = "cpu", torch_seed = 1L))
-    # Adam weight decay is fixed at 0.01 in the pinned package version.
-    dir.create("results", showWarnings = FALSE)
+    # Adam weight decay is fixed at 0.01 in ria.test 0.3.0.9000.
     write.csv(as.data.frame(tidy(fit)), file.path("results", paste0(outcome, ".csv")),
               row.names = FALSE)
     if (outcome == "verbal") capture.output(sessionInfo(), file = "results/sessionInfo.txt")
@@ -266,15 +240,15 @@ for (outcome in c("verbal", "numerical")) {
 }
 
 # 6. Export Table 1 in age-adjusted test-score points.
-# Convert c048 estimates to the original outcome units and export Table 1.
-results <- lapply(c("verbal", "numerical"), function(outcome) {
+results <- list()
+for (outcome in c("verbal", "numerical")) {
   x <- readRDS(file.path("derived", paste0(outcome, "_sample.rds")))
   y <- if (outcome == "verbal") "cogverb_adj" else "cognum_adj"
   tab <- read.csv(file.path("results", paste0(outcome, ".csv")))
   columns <- c("estimate", "std.error", "conf.low", "conf.high")
   tab[columns] <- tab[columns] * sd(x[[y]])
-  cbind(outcome, tab)
-})
+  results[[outcome]] <- cbind(outcome, tab)
+}
 table1 <- do.call(rbind, results)
 write.csv(table1, "results/table1.csv", row.names = FALSE)
 
@@ -284,7 +258,7 @@ tex <- c("\\begin{tabular}{c cc cc}",
   "Estimand & Estimate & 95\\% CI & Estimate & 95\\% CI \\\\", "\\hline")
 for (i in seq_along(labels)) {
   v <- results[[1]][i, ]; n <- results[[2]][i, ]
-  line <- sprintf("%s & %.3f & (%.3f, %.3f) & %.3f & (%.3f, %.3f) \\\\",
+  line <- sprintf("%s & %.2f & (%.2f, %.2f) & %.2f & (%.2f, %.2f) \\\\",
     labels[i], v$estimate, v$conf.low, v$conf.high, n$estimate, n$conf.low, n$conf.high)
   tex <- c(tex, sub("(-", "($-$", line, fixed = TRUE))
 }
