@@ -1,4 +1,4 @@
-# Raw BCS70 downloads -> Table 1 format, using c048 settings with ria.test 0.3.0.9000.
+# Raw BCS70 downloads -> Table 1 format, using c048 settings with lprime_folds = 2L and ria.test 0.3.0.9003.
 # Requires haven, dplyr, callr, ria.test, mlr3extralearners, and their dependencies.
 args <- commandArgs(trailingOnly = TRUE)
 root <- normalizePath(if (length(args)) args[1] else ".")
@@ -202,13 +202,14 @@ for (outcome in c("verbal", "numerical")) {
   cat(outcome, ":", nrow(sample), "children;", n_distinct(sample$caseid), "families\n")
 }
 
-# 5. Fit each outcome in a fresh R process to preserve c048's random initialization.
+# 5. Fit each outcome in a fresh R process with R and Torch seeds of 1.
 # The function is embedded here: no other R scripts are read or sourced.
 for (outcome in c("verbal", "numerical")) {
-  cat("Fitting", outcome, "with c048 settings...\n")
+  cat("Fitting", outcome, "with c048 settings and two L-prime folds...\n")
   callr::r(function(root, outcome) {
     setwd(root)
     library(ria.test)
+    stopifnot(as.character(packageVersion("ria.test")) == "0.3.0.9003")
     library(mlr3extralearners)
     x <- as.data.frame(readRDS(file.path("derived", paste0(outcome, "_sample.rds"))))
     y <- if (outcome == "verbal") "cogverb_adj" else "cognum_adj"
@@ -227,12 +228,8 @@ for (outcome in c("verbal", "numerical")) {
       post = post, id = "caseid",
       d0 = \(data, trt) factor(rep("0", nrow(data)), levels = levels(data[[trt]])),
       d1 = \(data, trt) factor(rep("1", nrow(data)), levels = levels(data[[trt]])),
-      learners = c("mean", "glm", "ranger"),
-      nn_module = sequential_module(layers = 1, hidden = 20, dropout = 0.2),
-      control = ria.test.control(crossfit_folds = 5L, mlr3superlearner_folds = 10L,
-        lprime_folds = 2L, epochs = 10L, learning_rate = 0.001, batch_size = 64,
-        device = "cpu", torch_seed = 1L))
-    # Adam weight decay is fixed at 0.01 in ria.test 0.3.0.9000.
+      control = ria.test.control(crossfit_folds = 5L, lprime_folds = 2L))
+    # Adam weight decay is fixed at 0.01 in ria.test 0.3.0.9003.
     write.csv(as.data.frame(tidy(fit)), file.path("results", paste0(outcome, ".csv")),
               row.names = FALSE)
     if (outcome == "verbal") capture.output(sessionInfo(), file = "results/sessionInfo.txt")
