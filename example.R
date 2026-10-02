@@ -9,8 +9,13 @@
 library(haven)
 library(dplyr)
 library(mlr3extralearners)
+
+remotes::install_github(
+  "ang-yu/ria.test",
+  ref = "9e674c8426300f02545e1d2dff278a263a570520",
+  upgrade = "never"
+)
 library(ria.test)
-stopifnot(as.character(packageVersion("ria.test")) == "0.3.0.9003")
 
 setwd("/Users/Ang/Desktop/Research/Cross-world_estimands/BCS70_Klein_Kuehhirt")
 # All downloaded raw data files are in the "raw" folder of the working directory.
