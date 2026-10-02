@@ -1,5 +1,10 @@
 # Klein and Kuehhirt (2021) replication files can be downloaded from https://osf.io/download/236zt/. 
 # We exactly reconstruct their samples and variables.
+# Raw dta files are downloaded from the UK Data Service (https://ukdataservice.ac.uk/):
+#   SN 2666: bcs7072a.dta, bcs1derived.dta
+#   SN 3723: sn3723.dta
+#   SN 7023: bcs3_occupation_coding_father.dta, bcs3_occupation_coding_mother.dta
+#   SN 5585: bcs_2004_followup.dta, bcs7derived.dta, bcs_2004_child_assessment_bas.dta
 
 library(haven)
 library(dplyr)
