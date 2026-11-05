@@ -12,7 +12,7 @@ library(mlr3extralearners)
 
 remotes::install_github(
   "ang-yu/ria.test",
-  ref = "9e674c8426300f02545e1d2dff278a263a570520",
+  ref = "46bd2dd",
   upgrade = "never"
 )
 library(ria.test)
