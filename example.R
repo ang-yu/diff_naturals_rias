@@ -12,7 +12,7 @@ library(mlr3extralearners)
 
 remotes::install_github(
   "ang-yu/ria.test",
-  ref = "46bd2dd",
+  ref = "e467d3f",
   upgrade = "never"
 )
 library(ria.test)
@@ -232,8 +232,7 @@ for (outcome in c("verbal", "numerical")) {
     data = x, trt = "granddegree", out = y, pre = pre, med = mediator,
     post = post, id = "bcsid",
     d0 = \(data, trt) factor(rep("0", nrow(data)), levels = levels(data[[trt]])),
-    d1 = \(data, trt) factor(rep("1", nrow(data)), levels = levels(data[[trt]])),
-    control = ria.test.control(crossfit_folds = 5L, lprime_folds = 2L))
+    d1 = \(data, trt) factor(rep("1", nrow(data)), levels = levels(data[[trt]])))
   
   tab <- as.data.frame(tidy(fit))
   score_columns <- c("estimate", "std.error", "conf.low", "conf.high")
