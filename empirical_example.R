@@ -10,11 +10,7 @@ library(haven)
 library(dplyr)
 library(mlr3extralearners)
 
-remotes::install_github(
-  "ang-yu/ria.test",
-  ref = "e40a878",
-  upgrade = "never"
-)
+remotes::install_github("ang-yu/ria.test", upgrade = "never")
 library(ria.test)
 
 setwd("/Users/Ang/Desktop/Research/Cross-world_estimands/BCS70_Klein_Kuehhirt")
